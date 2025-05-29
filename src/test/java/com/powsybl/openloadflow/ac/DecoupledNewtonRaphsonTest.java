@@ -27,7 +27,7 @@ import static com.powsybl.openloadflow.util.LoadFlowAssert.assertVoltageEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * @author Geoffroy Jamgotchian {@literal <geoffroy.jamgotchian at rte-france.com>}
+ * @author Erkko Ihalainen {@literal <business at erkkoihalainen.fi>}
  */
 class DecoupledNewtonRaphsonTest {
 
@@ -35,12 +35,10 @@ class DecoupledNewtonRaphsonTest {
 
     private LoadFlowParameters parameters;
 
-    private OpenLoadFlowParameters parametersExt;
-
     @BeforeEach
     void setUp() {
         parameters = new LoadFlowParameters();
-        parametersExt = OpenLoadFlowParameters.create(parameters)
+        OpenLoadFlowParameters.create(parameters)
                 .setSlackBusSelectionMode(SlackBusSelectionMode.FIRST)
                 .setAcSolverType(DecoupledNewtonRaphsonFactory.NAME);
         loadFlowRunner = new LoadFlow.Runner(new OpenLoadFlowProvider(new SparseMatrixFactory())); // sparse matrix solver only

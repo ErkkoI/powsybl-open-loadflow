@@ -29,7 +29,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author Geoffroy Jamgotchian {@literal <geoffroy.jamgotchian at rte-france.com>}
+ * @author Erkko Ihalainen {@literal <business at erkkoihalainen.fi>}
  */
 public class DecoupledNewtonRaphson extends AbstractAcSolver {
 
