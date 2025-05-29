@@ -14,6 +14,8 @@ import com.powsybl.math.matrix.LUDecomposition;
 import com.powsybl.math.matrix.Matrix;
 import com.powsybl.math.matrix.MatrixException;
 import com.powsybl.math.matrix.MatrixFactory;
+import com.powsybl.openloadflow.ac.equations.AcEquationType;
+import com.powsybl.openloadflow.ac.equations.AcVariableType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,6 +106,48 @@ public class JacobianMatrix<V extends Enum<V> & Quantity, E extends Enum<E> & Qu
         LOGGER.debug(PERFORMANCE_MARKER, "Jacobian matrix built in {} us", stopwatch.elapsed(TimeUnit.MICROSECONDS));
     }
 
+    private void initDecoupledDer() {
+        Stopwatch stopwatch = Stopwatch.createStarted();
+
+        int rowCount = equationSystem.getIndex().getSortedEquationsToSolve().size();
+        int columnCount = equationSystem.getIndex().getSortedVariablesToFind().size();
+        if (rowCount != columnCount) {
+            throw new PowsyblException("Expected to have same number of equations (" + rowCount
+                    + ") and variables (" + columnCount + ")");
+        }
+
+        int estimatedNonZeroValueCount = rowCount * 2;
+        matrix = matrixFactory.create(rowCount, columnCount, estimatedNonZeroValueCount);
+
+        for (Equation<V, E> eq : equationSystem.getIndex().getSortedEquationsToSolve()) {
+            E eqType = eq.getType();
+            if (eqType != AcEquationType.BUS_TARGET_P && eqType != AcEquationType.BUS_TARGET_Q && eqType != AcEquationType.BUS_TARGET_V && eqType != AcEquationType.BUS_TARGET_PHI) {
+                continue; // Skip all others
+            }
+            int column = eq.getColumn();
+            eq.der((variable, value, matrixElementIndex) -> {
+                int row = variable.getRow();
+                Quantity varType = variable.getType();
+
+                // Keep only:
+                //    P equation with PHI variable → H block
+                //    Q equation with V variable   → L block
+                boolean isPvsPhi = eqType == AcEquationType.BUS_TARGET_P && varType == AcVariableType.BUS_PHI;
+                boolean isQvsV   = eqType == AcEquationType.BUS_TARGET_Q && varType == AcVariableType.BUS_V;
+                boolean isTargetV = eqType == AcEquationType.BUS_TARGET_V;
+                boolean isTargetPhi = eqType == AcEquationType.BUS_TARGET_PHI;
+
+                if (isPvsPhi || isQvsV || isTargetV || isTargetPhi) {
+                    return matrix.addAndGetIndex(row, column, value);
+                } else {
+                    return matrixElementIndex; // Skip N, M, and irrelevant entries
+                }
+            });
+        }
+
+        LOGGER.debug(PERFORMANCE_MARKER, "Decoupled jacobian matrix built in {} us", stopwatch.elapsed(TimeUnit.MICROSECONDS));
+    }
+
     private void clearLu() {
         if (lu != null) {
             lu.close();
@@ -128,6 +172,41 @@ public class JacobianMatrix<V extends Enum<V> & Quantity, E extends Enum<E> & Qu
         }
 
         LOGGER.debug(PERFORMANCE_MARKER, "Jacobian matrix values updated in {} us", stopwatch.elapsed(TimeUnit.MICROSECONDS));
+    }
+
+    private void updateDecoupledDer() {
+        Stopwatch stopwatch = Stopwatch.createStarted();
+
+        matrix.reset();
+
+        for (Equation<V, E> eq : equationSystem.getIndex().getSortedEquationsToSolve()) {
+            Quantity eqType = eq.getType();
+
+            // Only consider BUS_TARGET_P and BUS_TARGET_Q
+            if (eqType != AcEquationType.BUS_TARGET_P && eqType != AcEquationType.BUS_TARGET_Q && eqType != AcEquationType.BUS_TARGET_V && eqType != AcEquationType.BUS_TARGET_PHI) {
+                continue;
+            }
+
+            eq.der((variable, value, matrixElementIndex) -> {
+                Quantity varType = variable.getType();
+
+                // Keep only:
+                //    P equation with PHI variable → H block
+                //    Q equation with V variable   → L block
+                boolean isPvsPhi = eqType == AcEquationType.BUS_TARGET_P && varType == AcVariableType.BUS_PHI;
+                boolean isQvsV   = eqType == AcEquationType.BUS_TARGET_Q && varType == AcVariableType.BUS_V;
+                boolean isTargetV = eqType == AcEquationType.BUS_TARGET_V;
+                boolean isTargetPhi = eqType == AcEquationType.BUS_TARGET_PHI;
+
+                if (isPvsPhi || isQvsV || isTargetV || isTargetPhi) {
+                    matrix.addAtIndex(matrixElementIndex, value); // update existing non-zero entry
+                }
+
+                return matrixElementIndex; // no changes to matrix structure
+            });
+        }
+
+        LOGGER.debug(PERFORMANCE_MARKER, "Decoupled Jacobian matrix values updated in {} us", stopwatch.elapsed(TimeUnit.MICROSECONDS));
     }
 
     private void updateLu(boolean allowIncrementalUpdate) {
