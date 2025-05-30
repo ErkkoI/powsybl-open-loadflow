@@ -9,6 +9,7 @@ package com.powsybl.openloadflow.ac.solver;
 
 import com.powsybl.commons.report.ReportNode;
 import com.powsybl.math.matrix.MatrixException;
+import com.powsybl.openloadflow.ac.equations.AcEquationSystemCreator;
 import com.powsybl.openloadflow.ac.equations.AcEquationType;
 import com.powsybl.openloadflow.ac.equations.AcVariableType;
 import com.powsybl.openloadflow.equations.*;
@@ -174,6 +175,9 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
 
     @Override
     public AcSolverResult run(VoltageInitializer voltageInitializer, ReportNode reportNode) {
+        for (Equation<AcVariableType, AcEquationType> e: equationSystem.getIndex().getSortedEquationsToSolve()){
+            System.out.println("todo");
+        }
         // initialize state vector
         AcSolverUtil.initStateVector(network, equationSystem, voltageInitializer);
         Vectors.minus(equationVector.getArray(), targetVector.getArray());
