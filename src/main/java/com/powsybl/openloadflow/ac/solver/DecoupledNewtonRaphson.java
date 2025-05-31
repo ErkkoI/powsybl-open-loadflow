@@ -120,8 +120,14 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
             // create iteration report
             // - add 1 to iteration so that it starts at 1 instead of 0
             ReportNode iterationReportNode = detailedReport ? Reports.createNewtonRaphsonMismatchReporter(reportNode, iterations.getValue() + 1) : null;
-
-            // solve f(x) = j * dx
+            System.out.printf("x_%d%n", iterations.getValue());
+            System.out.println(Arrays.toString(equationSystem.getStateVector().get()));
+            System.out.printf("dy_%d%n", iterations.getValue());
+            System.out.println(Arrays.toString(equationVector.getArray()));
+            System.out.printf("J_%d%n", iterations.getValue());
+            j.getMatrix().toDense().transpose().print(System.out);
+            System.out.printf("Solve dy_%d = J_%d * dx_%d%n", iterations.getValue(), iterations.getValue(), iterations.getValue());
+            // solve dy = j * dx
             try {
                 j.solveTransposed(equationVector.getArray());
             } catch (MatrixException e) {
@@ -129,16 +135,27 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
                 Reports.reportNewtonRaphsonError(reportNode, e.toString());
                 return AcSolverStatus.SOLVER_FAILED;
             }
-            // f(x) now contains dx
-
+            // equationVector now contains dx
+            System.out.printf("dx_%d%n", iterations.getValue());
+            System.out.println(Arrays.toString(equationVector.getArray()));
             svScaling.apply(equationVector.getArray(), equationSystem, iterationReportNode);
 
             // update x and f(x) will be automatically updated
             equationSystem.getStateVector().minus(equationVector.getArray());
+            System.out.printf("x_%d%n", iterations.getValue() + 1);
+            System.out.println(Arrays.toString(equationSystem.getStateVector().get()));
+
+            System.out.printf("f(x_%d)%n", iterations.getValue() + 1);
+            System.out.println(Arrays.toString(equationVector.getArray()));
+
+            System.out.println("Target vector");
+            System.out.println(Arrays.toString(targetVector.getArray()));
 
             // subtract targets from f(x)
             equationVector.minus(targetVector);
-            // f(x) now contains equation mismatches
+            // equationVector now contains equation mismatches
+            System.out.println("Mismatch vector");
+            System.out.println(Arrays.toString(equationVector.getArray()));
 
             if (LOGGER.isTraceEnabled()) {
                 findLargestMismatches(equationSystem, equationVector.getArray(), 5)
@@ -175,12 +192,10 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
 
     @Override
     public AcSolverResult run(VoltageInitializer voltageInitializer, ReportNode reportNode) {
-        for (Equation<AcVariableType, AcEquationType> e: equationSystem.getIndex().getSortedEquationsToSolve()){
-            System.out.println("todo");
-        }
         // initialize state vector
         AcSolverUtil.initStateVector(network, equationSystem, voltageInitializer);
         Vectors.minus(equationVector.getArray(), targetVector.getArray());
+
 
         NewtonRaphsonStoppingCriteria.TestResult initialTestResult = parameters.getStoppingCriteria().test(equationVector.getArray(), equationSystem);
         StateVectorScaling svScaling = StateVectorScaling.fromMode(parameters, initialTestResult);
