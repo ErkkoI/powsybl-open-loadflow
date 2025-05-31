@@ -204,40 +204,45 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
                 .getIndex()
                 .getSortedEquationsToSolve()
                 .stream()
-                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_P)
+                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_P || eq.getType() == AcEquationType.BUS_TARGET_PHI)
                 .toList();
         List<Equation<AcVariableType, AcEquationType>> qEquations = equationSystem
                 .getIndex()
                 .getSortedEquationsToSolve()
                 .stream()
-                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_Q)
+                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_Q || eq.getType() == AcEquationType.BUS_TARGET_V)
                 .toList();
         double[] pTarget = Arrays.stream(targetVector.getArray(), 0, pEquations.size()).toArray();
         double[] qTarget = Arrays.stream(targetVector.getArray(), pEquations.size(), pEquations.size() + qEquations.size()).toArray();
         J1 = matrixFactory.create(pEquations.size(), pEquations.size(), pEquations.size());
         J4 = matrixFactory.create(qEquations.size(), qEquations.size(), qEquations.size());
         j.forceUpdate();
+        System.out.println("J^T");
         j.getMatrix().toDense().print(System.out);
         for (Equation<AcVariableType, AcEquationType> pEquation: pEquations){
-            int col = pEquation.getColumn();
+            int col = pEquation.getColumn() - 1;
             pEquation.der((variable, value, matrixElementIndex) -> {
-                int row = variable.getRow();
-                if (variable.getType() != AcVariableType.BUS_PHI || network.getBus(col).isSlack()){
+                int row = variable.getRow() - 1;
+                if (variable.getType() != AcVariableType.BUS_PHI || row < 0 || col < 0){
                     return matrixElementIndex;
                 }
                 return J1.addAndGetIndex(row, col, value);
             });
         }
         for (Equation<AcVariableType, AcEquationType> qEquation: qEquations){
-            int col = qEquation.getColumn() - pEquations.size();
+            int col = qEquation.getColumn() - pEquations.size() - 1;
             qEquation.der((variable, value, matrixElementIndex) -> {
-                int row = variable.getRow() - pEquations.size();
-                if (variable.getType() != AcVariableType.BUS_V || network.getBus(col).isSlack()){
+                int row = variable.getRow() - pEquations.size() - 2;
+                if (variable.getType() != AcVariableType.BUS_V || row < 0 || col < 0){
                     return matrixElementIndex;
                 }
                 return J4.addAndGetIndex(row, col, value);
             });
         }
+        System.out.println("J1");
+        J1.print(System.out);
+        System.out.println("J4");
+        J4.print(System.out);
         NewtonRaphsonStoppingCriteria.TestResult initialTestResult = parameters.getStoppingCriteria().test(equationVector.getArray(), equationSystem);
         StateVectorScaling svScaling = StateVectorScaling.fromMode(parameters, initialTestResult);
 

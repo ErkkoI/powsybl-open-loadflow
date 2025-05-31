@@ -14,10 +14,10 @@ import com.powsybl.openloadflow.network.ElementType;
  * @author Geoffroy Jamgotchian {@literal <geoffroy.jamgotchian at rte-france.com>}
  */
 public enum AcEquationType implements Quantity {
-    BUS_TARGET_P("bus_target_p", ElementType.BUS), // bus active power target
-    BUS_TARGET_Q("bus_target_q", ElementType.BUS), // bus reactive power target
-    BUS_TARGET_V("bus_target_v", ElementType.BUS), // bus voltage magnitude control
     BUS_TARGET_PHI("bus_target_\u03C6", ElementType.BUS), // slack bus voltage angle target
+    BUS_TARGET_P("bus_target_p", ElementType.BUS), // bus active power target
+    BUS_TARGET_V("bus_target_v", ElementType.BUS), // bus voltage magnitude control
+    BUS_TARGET_Q("bus_target_q", ElementType.BUS), // bus reactive power target
     SHUNT_TARGET_B("shunt_target_b", ElementType.SHUNT_COMPENSATOR), // shunt susceptance
     BRANCH_TARGET_P("branch_target_p", ElementType.BRANCH), // phase shifter active flow control
     BRANCH_TARGET_Q("branch_target_q", ElementType.BRANCH), // generator reactive power control
