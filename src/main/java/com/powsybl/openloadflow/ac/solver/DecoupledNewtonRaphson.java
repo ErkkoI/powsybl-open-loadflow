@@ -8,8 +8,7 @@
 package com.powsybl.openloadflow.ac.solver;
 
 import com.powsybl.commons.report.ReportNode;
-import com.powsybl.math.matrix.MatrixException;
-import com.powsybl.openloadflow.ac.equations.AcEquationSystemCreator;
+import com.powsybl.math.matrix.*;
 import com.powsybl.openloadflow.ac.equations.AcEquationType;
 import com.powsybl.openloadflow.ac.equations.AcVariableType;
 import com.powsybl.openloadflow.equations.*;
@@ -39,6 +38,12 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
     public static final List<AcEquationType> REPORTED_AC_EQUATION_TYPES = List.of(AcEquationType.BUS_TARGET_P, AcEquationType.BUS_TARGET_Q, AcEquationType.BUS_TARGET_V);
 
     protected final NewtonRaphsonParameters parameters;
+
+    private final MatrixFactory matrixFactory = new DenseMatrixFactory();
+
+    private Matrix J1;
+
+    private Matrix J4;
 
     public DecoupledNewtonRaphson(LfNetwork network, NewtonRaphsonParameters parameters,
                                   EquationSystem<AcVariableType, AcEquationType> equationSystem,
@@ -195,8 +200,44 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
         // initialize state vector
         AcSolverUtil.initStateVector(network, equationSystem, voltageInitializer);
         Vectors.minus(equationVector.getArray(), targetVector.getArray());
-
-
+        List<Equation<AcVariableType, AcEquationType>> pEquations = equationSystem
+                .getIndex()
+                .getSortedEquationsToSolve()
+                .stream()
+                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_P)
+                .toList();
+        List<Equation<AcVariableType, AcEquationType>> qEquations = equationSystem
+                .getIndex()
+                .getSortedEquationsToSolve()
+                .stream()
+                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_Q)
+                .toList();
+        double[] pTarget = Arrays.stream(targetVector.getArray(), 0, pEquations.size()).toArray();
+        double[] qTarget = Arrays.stream(targetVector.getArray(), pEquations.size(), pEquations.size() + qEquations.size()).toArray();
+        J1 = matrixFactory.create(pEquations.size(), pEquations.size(), pEquations.size());
+        J4 = matrixFactory.create(qEquations.size(), qEquations.size(), qEquations.size());
+        j.forceUpdate();
+        j.getMatrix().toDense().print(System.out);
+        for (Equation<AcVariableType, AcEquationType> pEquation: pEquations){
+            int col = pEquation.getColumn();
+            pEquation.der((variable, value, matrixElementIndex) -> {
+                int row = variable.getRow();
+                if (variable.getType() != AcVariableType.BUS_PHI || network.getBus(col).isSlack()){
+                    return matrixElementIndex;
+                }
+                return J1.addAndGetIndex(row, col, value);
+            });
+        }
+        for (Equation<AcVariableType, AcEquationType> qEquation: qEquations){
+            int col = qEquation.getColumn() - pEquations.size();
+            qEquation.der((variable, value, matrixElementIndex) -> {
+                int row = variable.getRow() - pEquations.size();
+                if (variable.getType() != AcVariableType.BUS_V || network.getBus(col).isSlack()){
+                    return matrixElementIndex;
+                }
+                return J4.addAndGetIndex(row, col, value);
+            });
+        }
         NewtonRaphsonStoppingCriteria.TestResult initialTestResult = parameters.getStoppingCriteria().test(equationVector.getArray(), equationSystem);
         StateVectorScaling svScaling = StateVectorScaling.fromMode(parameters, initialTestResult);
 

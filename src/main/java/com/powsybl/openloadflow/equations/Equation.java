@@ -233,9 +233,9 @@ public class Equation<V extends Enum<V> & Quantity, E extends Enum<E> & Quantity
         if (o == this) {
             return 0;
         }
-        int c = elementNum - o.elementNum;
+        int c = type.ordinal() - o.type.ordinal();
         if (c == 0) {
-            c = type.ordinal() - o.type.ordinal();
+            c = elementNum - o.elementNum;
         }
         return c;
     }

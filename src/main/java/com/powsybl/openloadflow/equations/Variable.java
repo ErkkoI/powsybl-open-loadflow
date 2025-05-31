@@ -64,9 +64,9 @@ public class Variable<V extends Enum<V> & Quantity> implements Comparable<Variab
         if (o == this) {
             return 0;
         }
-        int c = elementNum - o.elementNum;
+        int c = type.ordinal() - o.type.ordinal();
         if (c == 0) {
-            c = type.ordinal() - o.type.ordinal();
+            c = elementNum - o.elementNum;
         }
         return c;
     }
