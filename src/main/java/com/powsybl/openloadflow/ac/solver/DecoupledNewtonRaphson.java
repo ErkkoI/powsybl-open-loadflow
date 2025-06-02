@@ -39,12 +39,6 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
 
     protected final NewtonRaphsonParameters parameters;
 
-    private final MatrixFactory matrixFactory = new DenseMatrixFactory();
-
-    private Matrix J1;
-
-    private Matrix J4;
-
     public DecoupledNewtonRaphson(LfNetwork network, NewtonRaphsonParameters parameters,
                                   EquationSystem<AcVariableType, AcEquationType> equationSystem,
                                   JacobianMatrix<AcVariableType, AcEquationType> j,
@@ -200,49 +194,20 @@ public class DecoupledNewtonRaphson extends AbstractAcSolver {
         // initialize state vector
         AcSolverUtil.initStateVector(network, equationSystem, voltageInitializer);
         Vectors.minus(equationVector.getArray(), targetVector.getArray());
-        List<Equation<AcVariableType, AcEquationType>> pEquations = equationSystem
-                .getIndex()
-                .getSortedEquationsToSolve()
-                .stream()
-                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_P || eq.getType() == AcEquationType.BUS_TARGET_PHI)
-                .toList();
-        List<Equation<AcVariableType, AcEquationType>> qEquations = equationSystem
-                .getIndex()
-                .getSortedEquationsToSolve()
-                .stream()
-                .filter((eq) -> eq.getType() == AcEquationType.BUS_TARGET_Q || eq.getType() == AcEquationType.BUS_TARGET_V)
-                .toList();
-        double[] pTarget = Arrays.stream(targetVector.getArray(), 0, pEquations.size()).toArray();
-        double[] qTarget = Arrays.stream(targetVector.getArray(), pEquations.size(), pEquations.size() + qEquations.size()).toArray();
-        J1 = matrixFactory.create(pEquations.size(), pEquations.size(), pEquations.size());
-        J4 = matrixFactory.create(qEquations.size(), qEquations.size(), qEquations.size());
         j.forceUpdate();
         System.out.println("J^T");
         j.getMatrix().toDense().print(System.out);
-        for (Equation<AcVariableType, AcEquationType> pEquation: pEquations){
-            int col = pEquation.getColumn() - 1;
-            pEquation.der((variable, value, matrixElementIndex) -> {
-                int row = variable.getRow() - 1;
-                if (variable.getType() != AcVariableType.BUS_PHI || row < 0 || col < 0){
-                    return matrixElementIndex;
-                }
-                return J1.addAndGetIndex(row, col, value);
-            });
-        }
-        for (Equation<AcVariableType, AcEquationType> qEquation: qEquations){
-            int col = qEquation.getColumn() - pEquations.size() - 1;
-            qEquation.der((variable, value, matrixElementIndex) -> {
-                int row = variable.getRow() - pEquations.size() - 2;
-                if (variable.getType() != AcVariableType.BUS_V || row < 0 || col < 0){
-                    return matrixElementIndex;
-                }
-                return J4.addAndGetIndex(row, col, value);
-            });
-        }
-        System.out.println("J1");
-        J1.print(System.out);
-        System.out.println("J4");
-        J4.print(System.out);
+        Map<AcEquationType, List<Equation<AcVariableType, AcEquationType>>> grouped_eq = equationSystem
+                .getIndex()
+                .getSortedEquationsToSolve()
+                .stream()
+                .collect(Collectors.groupingBy(Equation::getType));
+
+        Map<AcVariableType, List<Variable<AcVariableType>>> grouped_var = equationSystem
+                .getIndex()
+                .getSortedVariablesToFind()
+                .stream()
+                .collect(Collectors.groupingBy(Variable::getType, TreeMap::new, Collectors.toList()));
         NewtonRaphsonStoppingCriteria.TestResult initialTestResult = parameters.getStoppingCriteria().test(equationVector.getArray(), equationSystem);
         StateVectorScaling svScaling = StateVectorScaling.fromMode(parameters, initialTestResult);
 
